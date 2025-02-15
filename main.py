@@ -1,32 +1,37 @@
 import os
+import wave
+import json
 from vosk import Model, KaldiRecognizer
-import sounddevice as sd
-import numpy as np
 
-# Установите путь к модели
-model_path = 'model/vosk-model-small-ru-0.22'
-if not os.path.exists(model_path):
-    print(f"Модель не найдена в {model_path}. Скачайте её с официального сайта Vosk.")
+# Загрузка модели
+model = Model('model/vosk-model-small-ru-0.22')
+
+# Открываем аудиофайл
+wf = wave.open("test.wav", "rb")
+
+# Проверяем параметры аудиофайла
+if wf.getnchannels() != 1 or wf.getsampwidth() != 2 or wf.getcomptype() != "NONE":
+    print("Audio file must be: WAV 16 PCM.")
     exit(1)
 
-# Загрузите модель
-model = Model(model_path)
+# Создаем распознаватель
+rec = KaldiRecognizer(model, wf.getframerate())
 
-def callback(indata, frames, time, status):
-    if status:
-        print(status)
-    data = np.frombuffer(indata, dtype=np.int16)
-    if recognizer.AcceptWaveform(data):
-        print(recognizer.Result())
-    else:
-        print(recognizer.PartialResult())
+# Читаем аудиофайл и распознаем речь
+while True:
+    data = wf.readframes(4000)
+    if len(data) == 0:
+        break
+    if rec.AcceptWaveform(data):
+        result = rec.Result()
+        print(result)
 
-# Частота дискретизации
-sample_rate = 16000
-recognizer = KaldiRecognizer(model, sample_rate)
+# Финальный результат
+final_result = rec.FinalResult()
 
-# Запись аудио с использованием sounddevice
-with sd.RawInputStream(samplerate=sample_rate, blocksize=8000, dtype='int16', channels=1, callback=callback):
-    print("Начните говорить...")
-    while True:
-        pass
+# Обрабатываем результат в JSON
+final_result_json = json.loads(final_result)
+print("Распознанный текст: ", final_result_json['text'])
+
+with open("recognized_text_utf8.txt", "w", encoding="utf-8") as text_file:
+    text_file.write(final_result_json['text'])
